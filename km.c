@@ -1537,7 +1537,7 @@ static struct kretprobe do_execve_kretprobe = {
 */
 
 noinline static int sys_execve_return_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
-	/* // Commented out body to confirm that is is the function that causes the int3 oops
+	/* // Commented out body to confirm if this is the function that causes the int3 oops
 	int ret, process_id;
 	
 	pr_err("%s: In sys_execve_return_handler\n", DEVICE_NAME);
@@ -1896,7 +1896,7 @@ void free_pH_task_struct(pH_task_struct* process) {
 	
 	ASSERT(process != NULL);
 
-	//pr_err("%s: In free_pH_task_struct for %ld %s\n", DEVICE_NAME, process->process_id, process->profile->filename);
+	pr_err("%s: In free_pH_task_struct for %ld %s\n", DEVICE_NAME, process->process_id, process->profile->filename);
 	//pr_err("%s: process = %p\n", DEVICE_NAME, process);
 	//pr_err("%s: process->seq = %p\n", DEVICE_NAME, process->seq); // This will only print NULL if this process did not make a single syscall
 	
@@ -1919,7 +1919,7 @@ void free_pH_task_struct(pH_task_struct* process) {
 		//pr_err("%s: After stack_pop(process);\n", DEVICE_NAME);
 		i++;
 	}
-	//pr_err("%s: Emptied stack of pH_seqs\n", DEVICE_NAME);
+	pr_err("%s: Emptied stack of pH_seqs\n", DEVICE_NAME);
 	//stack_print(process); // Don't bother printing right now
 	//mutex_destroy(&(process->pH_seq_stack_sem)); // Leave the mutex intact?
 	
@@ -2233,6 +2233,8 @@ void stack_push(pH_task_struct* process, pH_seq* new_node) {
 	ASSERT(process != NULL);
 	ASSERT(new_node != NULL);
 
+	pr_err("%s: In stack_push\n", DEVICE_NAME);
+
 	if (process->seq == NULL) {
 		new_node->next = NULL;
 		process->seq = new_node;
@@ -2241,6 +2243,8 @@ void stack_push(pH_task_struct* process, pH_seq* new_node) {
 		new_node->next = process->seq;
 		process->seq = new_node;
 	}
+	
+	pr_err("%s: Exiting stack_push\n", DEVICE_NAME);
 }
 
 // Note: This implementation of pop DOES NOT return the deleted element. To do so would
@@ -2250,7 +2254,7 @@ void stack_pop(pH_task_struct* process) {
 	pH_seq* temp;
 	//pH_seq* top = process->seq;
 	
-	//pr_err("%s: In stack_pop\n", DEVICE_NAME);
+	pr_err("%s: In stack_pop\n", DEVICE_NAME);
 	//pr_err("%s: top = %p\n", DEVICE_NAME, top);
 
 	if (process->seq == NULL) {
@@ -2270,7 +2274,7 @@ void stack_pop(pH_task_struct* process) {
 	//pr_err("%s: Freed temp\n", DEVICE_NAME);
 	temp = NULL;
 	//mutex_unlock(&(process->pH_seq_stack_sem));
-	//pr_err("%s: Done stack_pop\n", DEVICE_NAME);
+	pr_err("%s: Done stack_pop\n", DEVICE_NAME);
 }
 
 pH_seq* stack_peek(pH_task_struct* process) {
@@ -2368,6 +2372,8 @@ not_inserted:
 
 noinline static long jsys_rt_sigreturn(void) {
 	pH_task_struct* process;
+	
+	goto not_inserted; // Temporarily skip the function to see if this causes the int3 oops
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	

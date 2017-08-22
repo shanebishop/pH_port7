@@ -1292,6 +1292,8 @@ noinline static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* 
 	char* path_to_binary;
 	pH_profile* profile;
 	
+	return 0; // Temporarily ignore all forks, as I believe this is the cause of the int3 oops
+	
 	// Boolean check
 	if (!module_inserted_successfully) return 0;
 	

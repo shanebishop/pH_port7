@@ -1335,6 +1335,11 @@ noinline static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* 
 		return -1;
 	}
 	
+	// Temp since I cannot grab the retval ----------------------------------------
+	pH_refcount_dec(profile);
+	return 0;
+	// ----------------------------------------------------------------------------
+	
 	// Handle the new process
 	// I will want to change this out so that I copy memory over from the parent pH_task_struct
 	// to the new pH_task_struct that I am creating

@@ -2316,6 +2316,8 @@ not_inserted:
 noinline static void jdo_signal(struct pt_regs* regs) {
 	pH_task_struct* process;
 	
+	goto not_inserted; // Temp return to confirm that this is not the cause of the int3 crash
+	
 	if (!module_inserted_successfully) goto not_inserted;
 	
 	//pr_err("%s: In jdo_signal\n", DEVICE_NAME);

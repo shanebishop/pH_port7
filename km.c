@@ -2341,7 +2341,7 @@ noinline static void jdo_signal(struct pt_regs* regs) {
 	return;
 	
 not_inserted:
-	pr_err("%s: Exiting jdo_signal from not_inserted\n", DEVICE_NAME);
+	//pr_err("%s: Exiting jdo_signal from not_inserted\n", DEVICE_NAME);
 	jprobe_return();
 	return;
 }

@@ -617,16 +617,12 @@ int make_and_push_new_pH_seq(pH_task_struct* process) {
 	pH_profile* profile;
 	pH_seq* new_sequence;
 	
-	// Checks for NULL process
-	if (!process || process == NULL) {
-		pr_err("%s: process is NULL in make_and_push_new_pH_seq\n", DEVICE_NAME);
-		return 0;
-	}
+	ASSERT(process != NULL);
 	
 	profile = process->profile;
-	pH_refcount_inc(profile);
+	if (profile != NULL) pH_refcount_inc(profile);
 	
-	// Checks for NULL profile
+	// Checks for NULL profile - do not change this to an assert
 	if (!profile || profile == NULL) {
 		pr_err("%s: profile is NULL in make_and_push_new_pH_seq\n", DEVICE_NAME);
 		return -1;
@@ -1147,6 +1143,7 @@ static long jsys_execve(const char __user *filename,
 	//pr_err("%s: Unlocking profile list in jsys_execve on line 1072\n", DEVICE_NAME);
 	//pr_err("%s: Profile found: %s\n", DEVICE_NAME, profile != NULL ? "yes" : "no");
 	
+	pr_err("%s: Calling add_to_read_filename_queue from jsys_execve...\n", DEVICE_NAME);
 	spin_lock(&read_filename_queue_lock);
 	add_to_read_filename_queue(path_to_binary);
 	spin_unlock(&read_filename_queue_lock);
@@ -1303,7 +1300,7 @@ static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	spin_unlock(&pH_task_struct_list_sem);
 	//preempt_enable();
 	if (!parent_process || parent_process == NULL) {
-		pr_err("%s: In fork_handler with NULL parent_process\n", DEVICE_NAME);
+		//pr_err("%s: In fork_handler with NULL parent_process\n", DEVICE_NAME);
 		return -1;
 	}
 	
@@ -2206,15 +2203,8 @@ void stack_print(pH_task_struct* process) {
 void stack_push(pH_task_struct* process, pH_seq* new_node) {
 	//pH_seq* top = process->seq;
 	
-	if (process == NULL) {
-		pr_err("%s: ERROR: process is NULL in stack_push\n", DEVICE_NAME);
-		return;
-	}
-	
-	if (new_node == NULL) {
-		pr_err("%s: ERROR: new_node is NULL in stack_push\n", DEVICE_NAME);
-		return;
-	}
+	ASSERT(process != NULL);
+	ASSERT(new_node != NULL);
 
 	if (process->seq == NULL) {
 		new_node->next = NULL;

@@ -619,6 +619,8 @@ int make_and_push_new_pH_seq(pH_task_struct* process) {
 	
 	ASSERT(process != NULL);
 	
+	pr_err("%s: In make_and_push_new_pH_seq\n", DEVICE_NAME);
+	
 	profile = process->profile;
 	if (profile != NULL) pH_refcount_inc(profile);
 	
@@ -646,8 +648,8 @@ int make_and_push_new_pH_seq(pH_task_struct* process) {
 	//pr_err("%s: Set new_sequence->last to %d\n", DEVICE_NAME, profile->length - 1);
 	stack_push(process, new_sequence);
 	//pr_err("%s: Pushed new_sequence\n", DEVICE_NAME);
-	//pr_err("%s: Exiting make_and_push_new_pH_seq\n", DEVICE_NAME);
 	pH_refcount_dec(profile);
+	pr_err("%s: Exiting make_and_push_new_pH_seq\n", DEVICE_NAME);
 	return 0;
 }
 
@@ -2308,7 +2310,7 @@ noinline static void jdo_signal(struct pt_regs* regs) {
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	
-	pr_err("%s: In jdo_signal\n", DEVICE_NAME);
+	//pr_err("%s: In jdo_signal\n", DEVICE_NAME);
 	
 	// Will this retrieve the process that the signal is being sent to, or will it retrieve the
 	// process that is sending the signal?
@@ -2319,10 +2321,12 @@ noinline static void jdo_signal(struct pt_regs* regs) {
 	//preempt_enable();
 	
 	if (process != NULL) {
+		pr_err("%s: Calling make_and_push_new_pH_seq from jdo_signal...\n", DEVICE_NAME);
 		make_and_push_new_pH_seq(process);
+		pr_err("%s: Back in jdo_signal after make_and_push_new_pH_seq\n", DEVICE_NAME);
 	}
 	
-	pr_err("%s: Exiting jdo_signal\n", DEVICE_NAME);
+	//pr_err("%s: Exiting jdo_signal\n", DEVICE_NAME);
 	jprobe_return();
 	return;
 	

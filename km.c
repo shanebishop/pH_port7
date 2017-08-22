@@ -1292,6 +1292,8 @@ noinline static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* 
 	char* path_to_binary;
 	pH_profile* profile;
 	
+	return 0; // Temporarily ignore forks just to see if fork_handler causes the int3 oops
+	
 	// Boolean check
 	if (!module_inserted_successfully) return 0;
 	
@@ -2445,7 +2447,7 @@ static int __init ebbchar_init(void) {
 
 	// Try to dynamically allocate a major number for the device
 	majorNumber = register_chrdev(0, DEVICE_NAME, &fops);
-	if (majorNumber<0){
+	if (majorNumber < 0) {
 	  pr_err("%s: Failed to register a major number\n", DEVICE_NAME);
 	  return majorNumber;
 	}
@@ -2453,7 +2455,7 @@ static int __init ebbchar_init(void) {
 
 	// Register the device class
 	ebbcharClass = class_create(THIS_MODULE, CLASS_NAME);
-	if (IS_ERR(ebbcharClass)){           // Check for error and clean up if there is
+	if (IS_ERR(ebbcharClass)) {           // Check for error and clean up if there is
 	  unregister_chrdev(majorNumber, DEVICE_NAME);
 	  pr_err("%s: Failed to register device class\n", DEVICE_NAME);
 	  return PTR_ERR(ebbcharClass);
@@ -2462,7 +2464,7 @@ static int __init ebbchar_init(void) {
 
 	// Register the device driver
 	ebbcharDevice = device_create(ebbcharClass, NULL, MKDEV(majorNumber, 0), NULL, DEVICE_NAME);
-	if (IS_ERR(ebbcharDevice)){          // Clean up if there is an error
+	if (IS_ERR(ebbcharDevice)) {          // Clean up if there is an error
 	  class_destroy(ebbcharClass);      
 	  unregister_chrdev(majorNumber, DEVICE_NAME);
 	  pr_err("%s: Failed to create the device\n", DEVICE_NAME);

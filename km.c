@@ -138,7 +138,7 @@ struct pH_profile {
 	// My new fields
 	struct hlist_node hlist; // Must be first field
 	int identifier;
-	spinlock_t freeing_lock;
+	//spinlock_t freeing_lock;
 	
 	// Anil's old fields
 	int normal;			// Is test profile normal?
@@ -154,6 +154,7 @@ struct pH_profile {
 	//struct file *seq_logfile;
 	pH_seq seq;
 	spinlock_t* lock;
+	bool is_temp_profile;
 };
 
 typedef struct pH_seq_logrec {
@@ -480,18 +481,15 @@ noinline void remove_from_read_filename_queue(void) {
 
 // Makes a new pH_profile and stores it in profile
 // profile must be allocated before this function is called
-int new_profile(pH_profile* profile, char* filename) {
+int new_profile(pH_profile* profile, char* filename, bool make_temp_profile) {
 	int i;
 
-	// Checks for NULL
-	if (!profile || profile == NULL) {
-		pr_err("%s: ERROR: NULL profile was passed to new_profile()\n", DEVICE_NAME);
-		return -1;
-	}
+	ASSERT(profile != NULL);
 
 	// Increments profiles_created, and stores it as the identifier
 	profiles_created++;
 	profile->identifier = profiles_created;
+	profile->is_temp_profile = make_temp_profile;
 
 	profile->normal = 0;  // We just started - not normal yet!
 	profile->frozen = 0;
@@ -510,7 +508,7 @@ int new_profile(pH_profile* profile, char* filename) {
 		return -ENOMEM;
 	}
 	spin_lock_init(profile->lock);
-	spin_lock_init(&(profile->freeing_lock));
+	//spin_lock_init(&(profile->freeing_lock));
 	//pr_err("%s: Got here 2 (new_profile)\n", DEVICE_NAME);
 
 	profile->train.sequences = 0;
@@ -543,15 +541,17 @@ int new_profile(pH_profile* profile, char* filename) {
 	// Add this new profile to the hashtable
 	//hash_add(profile_hashtable, &profile->hlist, pid_vnr(task_tgid(current)));
 	
-	// Add this new profile to the llist
-	//pr_err("%s: Locking profile list in new_profile on line 460\n", DEVICE_NAME);
-	//preempt_disable();
-	spin_lock(&pH_profile_list_sem);
-	add_to_profile_llist(profile);
-	spin_unlock(&pH_profile_list_sem);
-	//preempt_enable();
-	//pr_err("%s: Unlocking profile list in new_profile on line 462\n", DEVICE_NAME);
-	//pr_err("%s: Got here 5 (new_profile) returning...\n", DEVICE_NAME);
+	if (!make_temp_profile) {
+		// Add this new profile to the llist
+		//pr_err("%s: Locking profile list in new_profile on line 460\n", DEVICE_NAME);
+		//preempt_disable();
+		spin_lock(&pH_profile_list_sem);
+		add_to_profile_llist(profile);
+		spin_unlock(&pH_profile_list_sem);
+		//preempt_enable();
+		//pr_err("%s: Unlocking profile list in new_profile on line 462\n", DEVICE_NAME);
+		//pr_err("%s: Got here 5 (new_profile) returning...\n", DEVICE_NAME);
+	}
 
 	return 0;
 }
@@ -980,8 +980,10 @@ pH_profile* retrieve_pH_profile_by_filename(char* filename) {
 }
 
 // Helper function for jsys_execve and fork_handler, as both instances require similar code
-int handle_new_process(char* path_to_binary, pH_profile* profile, int process_id) {
-	if (profile != NULL) pH_refcount_inc(profile);
+int handle_new_process_fork(char* path_to_binary, pH_profile* profile, int process_id) {
+	ASSERT(profile != NULL);
+	
+	pH_refcount_inc(profile);
 	
 	pH_task_struct* this_process;
 	
@@ -1005,39 +1007,6 @@ int handle_new_process(char* path_to_binary, pH_profile* profile, int process_id
 	this_process->delay = 0;
 	this_process->count = 0;
 	//pr_err("%s: Initialized process\n", DEVICE_NAME);
-	
-	if (!profile || profile == NULL) {
-		// Retrieve the corresponding profile
-		//pr_err("%s: Attempting to retrieve profile...\n", DEVICE_NAME);
-		//pr_err("%s: Locking profile list in handle_new_process on line 922\n", DEVICE_NAME);
-		//preempt_disable();
-		spin_lock(&pH_profile_list_sem);
-		profile = retrieve_pH_profile_by_filename(path_to_binary);
-		spin_unlock(&pH_profile_list_sem);
-		//preempt_enable();
-		//pr_err("%s: Unlocking profile list in handle_new_process on line 924\n", DEVICE_NAME);
-		//pr_err("%s: Profile found: %s\n", DEVICE_NAME, profile != NULL ? "yes" : "no");
-		
-		// If there is no corresponding profile, make a new one
-		if (!profile || profile == NULL) {
-			profile = __vmalloc(sizeof(pH_profile), GFP_ATOMIC, PAGE_KERNEL);
-			if (!profile) {
-				pr_err("%s: Unable to allocate memory for profile in handle_new_process\n", DEVICE_NAME);
-				goto no_memory;
-			}
-			
-			new_profile(profile, path_to_binary);
-			pr_err("%s: Made new profile for [%s]\n", DEVICE_NAME, path_to_binary);
-			
-			if (!profile || profile == NULL) {
-				pr_err("%s: new_profile() made a corrupted or NULL profile\n", DEVICE_NAME);
-			}
-		}
-		else {
-			kfree(path_to_binary);
-			path_to_binary = NULL;
-		}
-	}
 	
 	this_process->profile = profile; // Put this profile in the pH_task_struct struct
 	pH_refcount_inc(profile);
@@ -1114,6 +1083,10 @@ static long jsys_execve(const char __user *filename,
 		process->process_id = current_process_id;
 		process->task_struct = current;
 		process->pid = task_pid(current);
+		process->profile = NULL;
+		process->next = NULL;
+		process->prev = NULL;
+		process->seq = NULL;
 		//pr_err("%s: Pre-initialized entirely new process\n", DEVICE_NAME);
 	}
 	else {
@@ -1134,7 +1107,7 @@ static long jsys_execve(const char __user *filename,
 	copy_from_user(path_to_binary, filename, sizeof(char) * 4000);
 	//pr_err("%s: path_to_binary = [%s]\n", DEVICE_NAME, path_to_binary);
 	
-	// Checks to see if path_to_binary is okay - perhaps move this to handle_new_process()
+	// Checks to see if path_to_binary is okay - perhaps move this to handle_new_process
 	if (!path_to_binary || path_to_binary == NULL || strlen(path_to_binary) < 1 || 
 		!(*path_to_binary == '~' || *path_to_binary == '.' || *path_to_binary == '/'))
 	{
@@ -1187,7 +1160,7 @@ static long jsys_execve(const char __user *filename,
 			goto exit;
 		}
 		
-		new_profile(profile, path_to_binary);
+		new_profile(profile, path_to_binary, TRUE);
 		pr_err("%s: Made new profile for [%s]\n", DEVICE_NAME, path_to_binary);
 		
 		if (!profile || profile == NULL) {
@@ -1343,7 +1316,7 @@ static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	
 	path_to_binary = profile->filename;
 	
-	// Checks to see if path_to_binary is okay - perhaps move this to handle_new_process()
+	// Checks to see if path_to_binary is okay - perhaps move this to handle_new_process
 	if (!path_to_binary || path_to_binary == NULL || strlen(path_to_binary) < 1 || 
 		!(*path_to_binary == '~' || *path_to_binary == '.' || *path_to_binary == '/'))
 	{
@@ -1355,7 +1328,7 @@ static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	// Handle the new process
 	// I will want to change this out so that I copy memory over from the parent pH_task_struct
 	// to the new pH_task_struct that I am creating
-	handle_new_process(path_to_binary, profile, retval);
+	handle_new_process_fork(path_to_binary, profile, retval);
 	
 	pH_refcount_dec(profile);
 	
@@ -1727,7 +1700,7 @@ void pH_free_profile(pH_profile *profile)
     
     //pr_err("%s: In pH_free_profile for %d\n", DEVICE_NAME, profile->identifier);
     
-    spin_lock(&(profile->freeing_lock));
+    //spin_lock(&(profile->freeing_lock));
     
     if (profile->lock == NULL) {
     	return;
@@ -1770,7 +1743,7 @@ void pH_free_profile(pH_profile *profile)
     //kfree(profile->lock); // Do not do this - the profile lock cannot come out from under another functions feet
     //profile->lock = NULL; // Instead, check to see if the profile is still around
     //pr_err("%s: Freed profile->lock\n", DEVICE_NAME);
-    spin_unlock(&(profile->freeing_lock));
+    //spin_unlock(&(profile->freeing_lock));
     //vfree(profile); // For now, don't free any profiles
     //profile = NULL; // This is okay, because profile was removed from the linked list above
     //pr_err("%s: Freed pH_profile (end of function)\n", DEVICE_NAME);
@@ -2377,10 +2350,10 @@ static long jsys_rt_sigreturn(void) {
 	
 	last_task_struct_in_sigreturn = current;
 	
-	pr_err("%s: In jsys_rt_sigreturn\n", DEVICE_NAME);
+	//pr_err("%s: In jsys_rt_sigreturn\n", DEVICE_NAME);
 	
 	process_syscall(383);
-	pr_err("%s: Back in jsys_rt_sigreturn after processing syscall\n", DEVICE_NAME);
+	//pr_err("%s: Back in jsys_rt_sigreturn after processing syscall\n", DEVICE_NAME);
 	
 	//preempt_disable();
 	spin_lock(&pH_task_struct_list_sem);

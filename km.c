@@ -742,6 +742,8 @@ int process_syscall(long syscall) {
 	pH_profile* profile;
 	int ret = -1;
 	
+	return 0; // Temp line to just ignore all syscalls
+	
 	// Boolean checks
 	if (!module_inserted_successfully) return 0;
 	
@@ -766,7 +768,7 @@ int process_syscall(long syscall) {
 		goto exit_before_profile;
 	}
 	//pr_err("%s: syscall=%d\n", DEVICE_NAME, syscall);
-	pr_err("%s: Retrieved process successfully\n", DEVICE_NAME);
+	//pr_err("%s: Retrieved process successfully\n", DEVICE_NAME);
 	//pr_err("\n\n\n\n\n\n\n\%s: No really, the process was retrieved successfully\n*****************\n*****************\n*****************\n", DEVICE_NAME);
 	
 	profile = process->profile; // Store process->profile in profile for shorter reference
@@ -883,7 +885,7 @@ int process_syscall(long syscall) {
 	add_to_my_syscall_llist(process, new_syscall);
 	*/
 	
-	pr_err("%s: Finished processing syscall %ld\n", DEVICE_NAME, syscall);
+	//pr_err("%s: Finished processing syscall %ld\n", DEVICE_NAME, syscall);
 	
 	ret = 0;
 

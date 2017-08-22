@@ -1092,7 +1092,7 @@ static long jsys_execve(const char __user *filename,
 	else {
 		already_had_process = TRUE;
 		pH_refcount_dec(process->profile);
-		//pr_err("%s: Decremented old profile refcount\n", DEVICE_NAME);
+		pr_err("%s: Decremented old profile refcount\n", DEVICE_NAME);
 	}
 	
 	// Allocate space for path_to_binary
@@ -1111,7 +1111,7 @@ static long jsys_execve(const char __user *filename,
 	if (!path_to_binary || path_to_binary == NULL || strlen(path_to_binary) < 1 || 
 		!(*path_to_binary == '~' || *path_to_binary == '.' || *path_to_binary == '/'))
 	{
-		//pr_err("%s: In jsys_execve with corrupted path_to_binary: [%s]\n", DEVICE_NAME, path_to_binary);
+		pr_err("%s: In jsys_execve with corrupted path_to_binary: [%s]\n", DEVICE_NAME, path_to_binary);
 		goto corrupted_path_to_binary;
 	}
 	//pr_err("%s: My code thinks path_to_binary is not corrupted\n", DEVICE_NAME);
@@ -1181,7 +1181,7 @@ static long jsys_execve(const char __user *filename,
 		add_process_to_llist(process);
 		spin_unlock(&pH_task_struct_list_sem);
 		//preempt_enable();
-		//pr_err("%s: process has been added to the llist\n", DEVICE_NAME);
+		pr_err("%s: process has been added to the llist\n", DEVICE_NAME);
 	}
 	
 	/* // The task struct already exists, what we need to be doing now is decrementing the refcount
@@ -1944,7 +1944,7 @@ void free_pH_task_struct(pH_task_struct* process) {
 	//preempt_enable();
 	kfree(process);
 	process = NULL; // Okay because process is removed from llist above
-	//pr_err("%s: Freed process (end of function)\n", DEVICE_NAME);
+	pr_err("%s: Freed process (end of function)\n", DEVICE_NAME);
 }
 
 static long jsys_exit(int error_code) {

@@ -1537,6 +1537,7 @@ static struct kretprobe do_execve_kretprobe = {
 */
 
 noinline static int sys_execve_return_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
+	/* // Commented out body to confirm that is is the function that causes the int3 oops
 	int ret, process_id;
 	
 	pr_err("%s: In sys_execve_return_handler\n", DEVICE_NAME);
@@ -1567,6 +1568,7 @@ noinline static int sys_execve_return_handler(struct kretprobe_instance* ri, str
 	pr_err("%s: Sent SIGCONT signal to %d\n", DEVICE_NAME, process_id);
 	
 	pr_err("%s: Leaving sys_execve_return_handler...\n", DEVICE_NAME);
+	*/
 	
 	return 0;
 }

@@ -279,7 +279,7 @@ spinlock_t pH_profile_list_sem;             // Lock for list of profiles
 spinlock_t pH_task_struct_list_sem;         // Lock for process list
 int profiles_created = 0;                   // Number of profiles that have been created
 int successful_jsys_execves = 0;            // Number of successful jsys_execves
-struct task_struct* last_task_struct_in_sigreturn = NULL;
+//struct task_struct* last_task_struct_in_sigreturn = NULL;
 read_filename* read_filename_queue_front = NULL;
 read_filename* read_filename_queue_rear = NULL;
 spinlock_t read_filename_queue_lock;
@@ -2369,18 +2369,27 @@ noinline static long jsys_rt_sigreturn(void) {
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	
-	last_task_struct_in_sigreturn = current;
+	//last_task_struct_in_sigreturn = current;
 	
-	pr_err("%s: In jsys_rt_sigreturn\n", DEVICE_NAME);
+	//pr_err("%s: In jsys_rt_sigreturn\n", DEVICE_NAME);
 	
 	process_syscall(383);
-	pr_err("%s: Back in jsys_rt_sigreturn after processing syscall\n", DEVICE_NAME);
+	//pr_err("%s: Back in jsys_rt_sigreturn after processing syscall\n", DEVICE_NAME);
 	
 	//preempt_disable();
 	spin_lock(&pH_task_struct_list_sem);
 	process = llist_retrieve_process(pid_vnr(task_tgid(current)));
 	spin_unlock(&pH_task_struct_list_sem);
 	//preempt_enable();
+	
+	if (!process || process == NULL) {
+		//pr_err("%s: process is NULL in jsys_rt_sigreturn\n", DEVICE_NAME);
+		goto not_inserted;
+	}
+	
+	pr_err("%s: Calling stack_pop in jsys_rt_sigreturn...\n", DEVICE_NAME);
+	stack_pop(process);
+	pr_err("%s: Back from stack_pop in jsys_rt_sigreturn\n", DEVICE_NAME);
 	
 	if (current->exit_state == EXIT_DEAD || current->exit_state == EXIT_ZOMBIE || current->state == TASK_DEAD) {
 		pr_err("%s: Calling free_pH_task_struct from jsys_rt_sigreturn\n", DEVICE_NAME);
@@ -2395,20 +2404,13 @@ noinline static long jsys_rt_sigreturn(void) {
 		//pr_err("%s: SIGKILL is not a member of current->pending.signal\n", DEVICE_NAME);
 	}
 	
-	if (!process || process == NULL) {
-		pr_err("%s: process is NULL in jsys_rt_sigreturn\n", DEVICE_NAME);
-		goto not_inserted;
-	}
-	
-	stack_pop(process);
-	
 	pr_err("%s: Got through all of jsys_rt_sigreturn\n", DEVICE_NAME);
 	
 	jprobe_return();
 	return 0;
 	
 not_inserted:
-	pr_err("%s: Returning from jsys_rt_sigreturn not_inserted...\n", DEVICE_NAME);
+	//pr_err("%s: Returning from jsys_rt_sigreturn not_inserted...\n", DEVICE_NAME);
 	jprobe_return();
 	return 0;
 }

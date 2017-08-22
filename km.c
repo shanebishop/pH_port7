@@ -764,7 +764,7 @@ int process_syscall(long syscall) {
 		goto exit_before_profile;
 	}
 	//pr_err("%s: syscall=%d\n", DEVICE_NAME, syscall);
-	//pr_err("%s: Retrieved process successfully\n", DEVICE_NAME);
+	pr_err("%s: Retrieved process successfully\n", DEVICE_NAME);
 	//pr_err("\n\n\n\n\n\n\n\%s: No really, the process was retrieved successfully\n*****************\n*****************\n*****************\n", DEVICE_NAME);
 	
 	profile = process->profile; // Store process->profile in profile for shorter reference
@@ -881,7 +881,7 @@ int process_syscall(long syscall) {
 	add_to_my_syscall_llist(process, new_syscall);
 	*/
 	
-	//pr_err("%s: Finished processing syscall %ld\n", DEVICE_NAME, syscall);
+	pr_err("%s: Finished processing syscall %ld\n", DEVICE_NAME, syscall);
 	
 	ret = 0;
 
@@ -1048,7 +1048,7 @@ static long jsys_execve(const char __user *filename,
 	
 	if (!pH_aremonitoring) goto exit;
 
-	//pr_err("%s: In jsys_execve\n", DEVICE_NAME);
+	pr_err("%s: In jsys_execve\n", DEVICE_NAME);
 	
 	current_process_id = pid_vnr(task_tgid(current)); // Grab the process ID right now
 	
@@ -1193,6 +1193,8 @@ static long jsys_execve(const char __user *filename,
 	
 	//successful_jsys_execves++; // Increment successful_jsys_execves
 	
+	pr_err("%s: Leaving jsys_execve after successful run\n", DEVICE_NAME);
+	
 	jprobe_return();
 	return 0;
 	
@@ -1205,6 +1207,8 @@ exit:
 	}
 	process = NULL;
 	
+	pr_err("%s: Leaving jsys_execve from exit\n", DEVICE_NAME);
+	
 	jprobe_return();
 	return 0;
 	
@@ -1212,6 +1216,8 @@ corrupted_path_to_binary:
 	kfree(path_to_binary);
 	path_to_binary = NULL;
 	process = NULL;
+	
+	pr_err("%s: Leaving jsys_execve from corrupted_path_to_binary\n", DEVICE_NAME);
 	
 	jprobe_return();
 	return 0;
@@ -1276,7 +1282,7 @@ struct my_kretprobe_data {
 // Currently a child process can only be handled if the pH_task_struct for the parent
 // process is still in memory. This is because pH_profiles require the absolute path
 // to the binary file, which I currently only know how to retrieve from sys_execve calls.
-static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
+noinline static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	int retval;
 	pH_task_struct* parent_process;
 	char* path_to_binary;
@@ -1285,12 +1291,13 @@ static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	// Boolean check
 	if (!module_inserted_successfully) return 0;
 	
-	//pr_err("%s: In fork_handler\n", DEVICE_NAME);
+	pr_err("%s: In fork_handler\n", DEVICE_NAME);
 	
 	retval = regs_return_value(regs);
 	
 	if (retval < 0) {
 		// fork() returned error - did not create child process
+		pr_err("%s: Returing from fork_handler - fork failed\n", DEVICE_NAME);
 		return retval;
 	}
 	
@@ -1300,7 +1307,7 @@ static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	spin_unlock(&pH_task_struct_list_sem);
 	//preempt_enable();
 	if (!parent_process || parent_process == NULL) {
-		//pr_err("%s: In fork_handler with NULL parent_process\n", DEVICE_NAME);
+		pr_err("%s: In fork_handler with NULL parent_process\n", DEVICE_NAME);
 		return -1;
 	}
 	
@@ -1325,11 +1332,13 @@ static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	// Handle the new process
 	// I will want to change this out so that I copy memory over from the parent pH_task_struct
 	// to the new pH_task_struct that I am creating
+	pr_err("%s: Calling handle_new_process_fork...\n", DEVICE_NAME);
 	handle_new_process_fork(path_to_binary, profile, retval);
+	pr_err("%s: Back from handle_new_process_fork\n", DEVICE_NAME);
 	
 	pH_refcount_dec(profile);
 	
-	//pr_err("%s: Got through all of fork_handler\n", DEVICE_NAME);
+	pr_err("%s: Got through all of fork_handler\n", DEVICE_NAME);
 	
 	return 0;
 }
@@ -1523,7 +1532,7 @@ static struct kretprobe do_execve_kretprobe = {
 };
 */
 
-static int sys_execve_return_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
+noinline static int sys_execve_return_handler(struct kretprobe_instance* ri, struct pt_regs* regs) {
 	int ret, process_id;
 	
 	pr_err("%s: In sys_execve_return_handler\n", DEVICE_NAME);
@@ -1533,6 +1542,7 @@ static int sys_execve_return_handler(struct kretprobe_instance* ri, struct pt_re
 	ret = send_sig(SIGSTOP, current, SIGNAL_PRIVILEGE);
 	if (ret < 0) {
 		pr_err("%s: Failed to send SIGSTOP signal to %d\n", DEVICE_NAME, process_id);
+		pr_err("%s: Leaving sys_execve_return_handler...\n", DEVICE_NAME);
 		return ret;
 	}
 	pr_err("%s: Sent SIGSTOP signal to %d\n", DEVICE_NAME, process_id);
@@ -1547,9 +1557,12 @@ static int sys_execve_return_handler(struct kretprobe_instance* ri, struct pt_re
 	ret = send_sig(SIGCONT, current, SIGNAL_PRIVILEGE);
 	if (ret < 0) {
 		pr_err("%s: Failed to send SIGCONT signal to %d\n", DEVICE_NAME, process_id);
+		pr_err("%s: Leaving sys_execve_return_handler...\n", DEVICE_NAME);
 		return ret;
 	}
 	pr_err("%s: Sent SIGCONT signal to %d\n", DEVICE_NAME, process_id);
+	
+	pr_err("%s: Leaving sys_execve_return_handler...\n", DEVICE_NAME);
 	
 	return 0;
 }
@@ -1944,12 +1957,12 @@ void free_pH_task_struct(pH_task_struct* process) {
 	pr_err("%s: Freed process (end of function)\n", DEVICE_NAME);
 }
 
-static long jsys_exit(int error_code) {
+noinline static long jsys_exit(int error_code) {
 	pH_task_struct* process;
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	
-	//pr_err("%s: In jsys_exit for %d\n", DEVICE_NAME, pid_vnr(task_tgid(current)));
+	pr_err("%s: In jsys_exit for %d\n", DEVICE_NAME, pid_vnr(task_tgid(current)));
 	
 	//preempt_disable();
 	spin_lock(&pH_task_struct_list_sem);
@@ -1959,7 +1972,7 @@ static long jsys_exit(int error_code) {
 	
 	if (process == NULL) goto not_monitoring;
 	
-	//pr_err("%s: In jsys_exit for %d %s\n", DEVICE_NAME, pid_vnr(task_tgid(current)), process->profile->filename);
+	pr_err("%s: In jsys_exit for %d %s\n", DEVICE_NAME, pid_vnr(task_tgid(current)), process->profile->filename);
 	
 	//process_syscall(72); // Process this syscall before calling free_pH_task_struct on process
 	//pr_err("%s: Back in jsys_exit after processing syscall\n", DEVICE_NAME);
@@ -1967,15 +1980,18 @@ static long jsys_exit(int error_code) {
 	pr_err("%s: Calling free_pH_task_struct from jsys_exit\n", DEVICE_NAME);
 	free_pH_task_struct(process);
 	
+	pr_err("%s: Leaving jsys_exit...\n", DEVICE_NAME);
+	
 	jprobe_return();
 	return 0;
 	
 not_monitoring:
-	//pr_err("%s: %d had no pH_task_struct associated with it\n", DEVICE_NAME, pid_vnr(task_tgid(current)));
+	pr_err("%s: %d had no pH_task_struct associated with it\n", DEVICE_NAME, pid_vnr(task_tgid(current)));
 	jprobe_return();
 	return 0;
 	
 not_inserted:
+	//pr_err("%s: Leaving sys_execve_return_handler from not_inserted...\n", DEVICE_NAME);
 	jprobe_return();
 	return 0;
 }
@@ -1984,7 +2000,7 @@ struct jprobe sys_exit_jprobe = {
 	.entry = jsys_exit,
 };
 
-static long jdo_group_exit(int error_code) {
+noinline static long jdo_group_exit(int error_code) {
 	pH_task_struct* process;
 	struct task_struct* p;
 	struct task_struct* t;
@@ -1993,7 +2009,7 @@ static long jdo_group_exit(int error_code) {
 	
 	p = current;
 	
-	//pr_err("%s: In jdo_group_exit for %d\n", DEVICE_NAME, pid_vnr(task_tgid(p)));
+	pr_err("%s: In jdo_group_exit for %d\n", DEVICE_NAME, pid_vnr(task_tgid(p)));
 	
 	//preempt_disable();
 	spin_lock(&pH_task_struct_list_sem);
@@ -2003,7 +2019,7 @@ static long jdo_group_exit(int error_code) {
 
 	if (process == NULL) goto not_monitoring;
 	
-	//pr_err("%s: In jdo_group_exit for %d %s\n", DEVICE_NAME, pid_vnr(task_tgid(p)), process->profile->filename);
+	pr_err("%s: In jdo_group_exit for %d %s\n", DEVICE_NAME, pid_vnr(task_tgid(p)), process->profile->filename);
 	
 	t = p;
 	while_each_thread(p, t) {
@@ -2031,11 +2047,13 @@ static long jdo_group_exit(int error_code) {
 		free_pH_task_struct(process);
 	}
 	
+	pr_err("%s: Returning from jdo_group_exit...\n", DEVICE_NAME);
+	
 	jprobe_return();
 	return 0;
 	
 not_monitoring:
-	//pr_err("%s: %d had no pH_task_struct associated with it\n", DEVICE_NAME, pid_vnr(task_tgid(current)));
+	pr_err("%s: %d had no pH_task_struct associated with it\n", DEVICE_NAME, pid_vnr(task_tgid(current)));
 	jprobe_return();
 	return 0;
 	
@@ -2083,14 +2101,14 @@ struct jprobe wait_consider_task_jprobe = {
 };
 */
 
-static void jfree_pid(struct pid* pid) {
+noinline static void jfree_pid(struct pid* pid) {
 	pH_task_struct* iterator;
 	int i = 0;
 	bool freed_anything = FALSE;
 	
 	if (!module_inserted_successfully) goto exit;
 	
-	//pr_err("%s: In jfree_pid\n", DEVICE_NAME);
+	pr_err("%s: In jfree_pid\n", DEVICE_NAME);
 	
 	spin_lock(&pH_task_struct_list_sem);
 	for (iterator = pH_task_struct_list; iterator != NULL; iterator = iterator->next) {
@@ -2137,10 +2155,13 @@ static void jfree_pid(struct pid* pid) {
 	
 	ASSERT(freed_anything);
 	
+	pr_err("%s: Returning from successful jfree_pid...\n", DEVICE_NAME);
+	
 	jprobe_return();
 	return;
 
 exit:
+	pr_err("%s: Returning from jfree_pid exit...\n", DEVICE_NAME);
 	jprobe_return();
 	return;
 }
@@ -2252,12 +2273,12 @@ pH_seq* stack_peek(pH_task_struct* process) {
 
 // This is for when a process receives a signal, NOT for when it resumes execution following
 // the signal. I will need to implement a second jprobe handler for resuming execution.
-static void jhandle_signal(struct ksignal* ksig, struct pt_regs* regs) {
+noinline static void jhandle_signal(struct ksignal* ksig, struct pt_regs* regs) {
 	pH_task_struct* process;
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	
-	//pr_err("%s: In jhandle_signal\n", DEVICE_NAME);
+	pr_err("%s: In jhandle_signal\n", DEVICE_NAME);
 	
 	// Will this retrieve the process that the signal is being sent to, or will it retrieve the
 	// process that is sending the signal?
@@ -2271,20 +2292,23 @@ static void jhandle_signal(struct ksignal* ksig, struct pt_regs* regs) {
 		make_and_push_new_pH_seq(process);
 	}
 	
+	pr_err("%s: Returning from successful jhandle_signal...\n", DEVICE_NAME);
+	
 	jprobe_return();
 	return;
 	
 not_inserted:
+	pr_err("%s: Returning from jhandle_signal not_inserted...\n", DEVICE_NAME);
 	jprobe_return();
 	return;
 }
 
-static void jdo_signal(struct pt_regs* regs) {
+noinline static void jdo_signal(struct pt_regs* regs) {
 	pH_task_struct* process;
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	
-	//pr_err("%s: In jdo_signal\n", DEVICE_NAME);
+	pr_err("%s: In jdo_signal\n", DEVICE_NAME);
 	
 	// Will this retrieve the process that the signal is being sent to, or will it retrieve the
 	// process that is sending the signal?
@@ -2298,11 +2322,12 @@ static void jdo_signal(struct pt_regs* regs) {
 		make_and_push_new_pH_seq(process);
 	}
 	
-	//pr_err("%s: Exiting jdo_signal\n", DEVICE_NAME);
+	pr_err("%s: Exiting jdo_signal\n", DEVICE_NAME);
 	jprobe_return();
 	return;
 	
 not_inserted:
+	pr_err("%s: Exiting jdo_signal from not_inserted\n", DEVICE_NAME);
 	jprobe_return();
 	return;
 }
@@ -2333,17 +2358,17 @@ not_inserted:
 }
 */
 
-static long jsys_rt_sigreturn(void) {
+noinline static long jsys_rt_sigreturn(void) {
 	pH_task_struct* process;
 	
 	if (!module_inserted_successfully) goto not_inserted;
 	
 	last_task_struct_in_sigreturn = current;
 	
-	//pr_err("%s: In jsys_rt_sigreturn\n", DEVICE_NAME);
+	pr_err("%s: In jsys_rt_sigreturn\n", DEVICE_NAME);
 	
 	process_syscall(383);
-	//pr_err("%s: Back in jsys_rt_sigreturn after processing syscall\n", DEVICE_NAME);
+	pr_err("%s: Back in jsys_rt_sigreturn after processing syscall\n", DEVICE_NAME);
 	
 	//preempt_disable();
 	spin_lock(&pH_task_struct_list_sem);
@@ -2364,7 +2389,10 @@ static long jsys_rt_sigreturn(void) {
 		//pr_err("%s: SIGKILL is not a member of current->pending.signal\n", DEVICE_NAME);
 	}
 	
-	if (!process || process == NULL) goto not_inserted;
+	if (!process || process == NULL) {
+		pr_err("%s: process is NULL in jsys_rt_sigreturn\n", DEVICE_NAME);
+		goto not_inserted;
+	}
 	
 	stack_pop(process);
 	
@@ -2374,6 +2402,7 @@ static long jsys_rt_sigreturn(void) {
 	return 0;
 	
 not_inserted:
+	pr_err("%s: Returning from jsys_rt_sigreturn not_inserted...\n", DEVICE_NAME);
 	jprobe_return();
 	return 0;
 }

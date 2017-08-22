@@ -1292,13 +1292,12 @@ noinline static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* 
 	char* path_to_binary;
 	pH_profile* profile;
 	
-	return 0; // Temporarily ignore forks just to see if fork_handler causes the int3 oops
-	
 	// Boolean check
 	if (!module_inserted_successfully) return 0;
 	
 	pr_err("%s: In fork_handler\n", DEVICE_NAME);
 	
+	/*
 	retval = regs_return_value(regs);
 	
 	if (retval < 0) {
@@ -1306,6 +1305,7 @@ noinline static int fork_handler(struct kretprobe_instance* ri, struct pt_regs* 
 		pr_err("%s: Returing from fork_handler - fork failed\n", DEVICE_NAME);
 		return retval;
 	}
+	*/
 	
 	//preempt_disable();
 	spin_lock(&pH_task_struct_list_sem);

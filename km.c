@@ -473,6 +473,7 @@ noinline void remove_from_read_filename_queue(void) {
 	
 	to_return = read_filename_queue_front;
 	read_filename_queue_front = read_filename_queue_front->next;
+	if (read_filename_queue_front == NULL) read_filename_queue_rear = NULL;
 	kfree(to_return->filename);
 	to_return->filename = NULL;
 	kfree(to_return);
@@ -2895,19 +2896,19 @@ static void __exit ebbchar_exit(void){
 	pr_err("%s: %s successfully removed\n", DEVICE_NAME, DEVICE_NAME);
 }
 
-static int dev_open(struct inode *inodep, struct file *filep){
+static int dev_open(struct inode *inodep, struct file *filep) {
 	return 0;
 }
 
-static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
+static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset) {
 	return 0;
 }
 
-static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
+static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {
 	return 0;
 }
 
-static int dev_release(struct inode *inodep, struct file *filep){
+static int dev_release(struct inode *inodep, struct file *filep) {
 	return 0;
 }
 
